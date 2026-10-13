@@ -1,0 +1,16 @@
+{
+  "name": "우쿨 레퍼토리",
+  "short_name": "레퍼토리",
+  "description": "우쿨렐레 곡 연습 노트: 구간 외우기, 템포 올리기, 완곡 횟수, 연습 시간, 악보, 메모",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#eef4f6",
+  "theme_color": "#127a7a",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

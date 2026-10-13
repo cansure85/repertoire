@@ -1,0 +1,918 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="레퍼토리">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#127a7a">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>우쿨 레퍼토리</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: 폰 한 열. 홈 = 연습 중인 곡 카드, 곡 화면 = 단계(외우기→템포→완곡) · 타이머 · 악보 · 일지 · 메모 */
+:root {
+  --bg: #eef4f6;
+  --surface: #ffffff;
+  --ink: #16283a;
+  --muted: #5b6e7c;
+  --line: #d4e0e6;
+  --accent: #127a7a;
+  --accent-soft: #d6eeec;
+  --sun: #f2b33d;
+  --track: #e2ebef;
+  --ok: #2f7d5b;
+  --danger: #c4413b;
+  --f-display: "Gowun Batang", "Apple SD Gothic Neo", serif;
+  --f-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f1a22; --surface: #172631; --ink: #e4eef2; --muted: #93a8b4; --line: #26394a;
+  --accent: #3fb8b0; --accent-soft: #173b3c; --sun: #f5c35e; --track: #203342; --ok: #6cc59a; --danger: #ef7a72;
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0f1a22; --surface: #172631; --ink: #e4eef2; --muted: #93a8b4; --line: #26394a;
+  --accent: #3fb8b0; --accent-soft: #173b3c; --sun: #f5c35e; --track: #203342; --ok: #6cc59a; --danger: #ef7a72;
+  color-scheme: dark; }
+
+body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--f-body); word-break: keep-all; overflow-wrap: anywhere; }
+.wrap { max-width: 480px; margin: 0 auto; padding-inline: 16px; padding-block: 18px 56px; display: grid; gap: 14px; }
+.stack { display: grid; gap: 14px; }
+h1, h2, h3 { font-family: var(--f-display); margin: 0; text-wrap: balance; }
+h1 { font-size: 26px; }
+h2 { font-size: 18px; }
+.label { font-size: 12px; letter-spacing: .06em; color: var(--muted); }
+.num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.note { font-size: 13px; color: var(--muted); }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.spread { justify-content: space-between; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: grid; gap: 12px; min-width: 0; }
+button, input, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); padding: 9px 14px; touch-action: manipulation; }
+button:disabled { opacity: .45; cursor: default; }
+button:focus-visible, input:focus-visible, textarea:focus-visible, .song:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+input, textarea { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; width: 100%; min-width: 0; box-sizing: border-box; }
+textarea { resize: vertical; min-height: 64px; }
+.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.ghost { background: transparent; border-color: transparent; }
+.danger { color: var(--danger); }
+.danger.armed { background: var(--danger); border-color: var(--danger); color: #fff; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chips button { padding: 5px 12px; font-size: 13px; border-radius: 999px; }
+.chips button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); font-weight: 600; }
+
+/* 홈 */
+.hero { display: grid; gap: 4px; }
+.summary { display: flex; gap: 8px; flex-wrap: wrap; }
+.pill { font-size: 13px; padding: 4px 10px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); }
+.pill b { font-family: var(--f-mono); font-weight: 500; }
+.songs { display: grid; gap: 10px; }
+.song { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 12px 12px 12px 14px; cursor: pointer; }
+.av { width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; font: 700 19px var(--f-display); color: #fff; flex: none; }
+.song .t { font-weight: 600; font-size: 16px; line-height: 1.3; }
+.song .sub { font-size: 12.5px; color: var(--muted); }
+.mini { height: 6px; border-radius: 3px; background: var(--track); overflow: hidden; margin-top: 6px; }
+.mini i { display: block; height: 100%; border-radius: 3px; }
+.quick { min-width: 58px; padding: 10px 0; font: 600 16px var(--f-mono); border-radius: 14px; color: #fff; border: none; }
+.add { border: 2px dashed var(--line); background: transparent; border-radius: 16px; padding: 16px; font-weight: 600; color: var(--accent); }
+.empty { text-align: center; padding: 26px 16px; justify-items: center; }
+details > summary { cursor: pointer; list-style: none; font-weight: 600; }
+details > summary::-webkit-details-marker { display: none; }
+details > summary::before { content: "▸ "; color: var(--muted); }
+details[open] > summary::before { content: "▾ "; }
+.donecard { opacity: .85; }
+.badge { font-size: 11px; padding: 1px 7px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 600; white-space: nowrap; }
+.badge.sun { background: color-mix(in srgb, var(--sun) 25%, transparent); color: var(--ink); }
+.badge.late { background: color-mix(in srgb, var(--danger) 15%, transparent); color: var(--danger); }
+.runbadge { background: var(--danger); color: #fff; }
+
+/* 곡 화면 */
+.top { display: flex; align-items: center; gap: 8px; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 6px; }
+.top .back { padding: 6px 10px; }
+.head { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: center; }
+.phases { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.phase { border-radius: 12px; padding: 8px 8px 9px; background: var(--surface); border: 1px solid var(--line); display: grid; gap: 2px; text-align: left; }
+.phase b { font-size: 12px; }
+.phase span { font: 500 13px var(--f-mono); }
+.phase .bar { height: 4px; border-radius: 2px; background: var(--track); overflow: hidden; }
+.phase .bar i { display: block; height: 100%; background: var(--accent); }
+.phase.now { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.phase.done { background: var(--accent-soft); }
+.clock { font: 500 40px/1 var(--f-mono); font-variant-numeric: tabular-nums; }
+.timerbtn { min-width: 110px; padding: 12px 18px; font-weight: 700; border-radius: 14px; }
+.timerbtn.run { background: var(--danger); border-color: var(--danger); color: #fff; }
+.parts { display: grid; gap: 8px; }
+.part { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--bg); }
+.part b { font-size: 15px; }
+.part .note { grid-column: 1; }
+.part button { grid-row: 1 / span 2; grid-column: 2; font-size: 13px; padding: 7px 10px; white-space: nowrap; }
+.part button.mem { background: var(--accent); border-color: var(--accent); color: #fff; }
+.tempochart { width: 100%; height: auto; display: block; }
+.tempochart text { fill: var(--muted); font: 10px var(--f-body); }
+.tempochart .v { fill: var(--ink); font: 11px var(--f-mono); }
+.bpmin { width: 84px; text-align: center; font: 500 18px var(--f-mono); }
+.beats { display: flex; gap: 6px; }
+.beats span { width: 12px; height: 12px; border-radius: 50%; background: var(--track); }
+.beats span.on { background: var(--accent); }
+.counter { justify-items: center; text-align: center; }
+.ringbox { position: relative; width: 150px; height: 150px; }
+.ringbox svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.ringbox circle { fill: none; stroke-width: 12; }
+.ringtext { position: absolute; inset: 0; display: grid; place-content: center; gap: 2px; }
+.big { font: 500 44px/1 var(--f-mono); font-variant-numeric: tabular-nums; }
+.plus { width: 100%; max-width: 320px; padding: 18px; font-size: 20px; font-weight: 700; border: none; border-radius: 18px; color: #fff; }
+.plus:active, .quick:active { transform: scale(.97); }
+.small { font-size: 13px; padding: 6px 12px; color: var(--muted); }
+.steps { display: grid; gap: 6px; }
+.step { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; padding: 8px 10px; border-radius: 10px; background: var(--bg); cursor: pointer; }
+.step input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--accent); }
+.step.done span { text-decoration: line-through; color: var(--muted); }
+.files { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.file { position: relative; aspect-ratio: 3 / 4; max-width: 100%; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); background: var(--bg); display: grid; place-items: center; cursor: pointer; padding: 0; }
+.file img { width: 100%; height: 100%; object-fit: cover; }
+.file .pdf { font: 700 14px var(--f-mono); color: var(--danger); display: grid; gap: 4px; justify-items: center; padding: 6px; text-align: center; }
+.file .pdf small { font: 11px var(--f-body); color: var(--muted); word-break: break-all; }
+.fileadd { border: 2px dashed var(--line); color: var(--accent); font-weight: 600; font-size: 13px; }
+.journal { display: grid; gap: 0; }
+.jday { padding-block: 10px; border-top: 1px solid var(--line); display: grid; gap: 2px; }
+.jday:first-child { border-top: none; }
+.jday b { font: 500 13px var(--f-mono); }
+.jday span { font-size: 14px; }
+.memos { display: grid; gap: 0; }
+.memo { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4px 8px; padding-block: 10px; border-top: 1px solid var(--line); }
+.memo:first-child { border-top: none; }
+.memo b { font: 500 12px var(--f-mono); color: var(--muted); }
+.memo p { grid-column: 1 / -1; margin: 0; white-space: pre-wrap; }
+.memo button { padding: 2px 8px; font-size: 12px; color: var(--muted); }
+
+/* 악보 보기 */
+.viewer { position: fixed; inset: 0; z-index: 25; background: #0b1218; display: grid; grid-template-rows: auto 1fr; }
+.viewer .vbar { display: flex; gap: 8px; align-items: center; padding: calc(8px + env(safe-area-inset-top, 0px)) 12px 8px; color: #e4eef2; }
+.viewer .vbar button { background: transparent; border-color: #3a4a58; color: #e4eef2; }
+.viewer .vbar .name { flex: 1; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.viewer .vbody { overflow: auto; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y pinch-zoom; }
+.viewer img { display: block; width: 100%; height: auto; max-width: none; transform-origin: 0 0; }
+
+/* 시트 */
+.sheet { position: fixed; inset: 0; z-index: 20; background: color-mix(in srgb, var(--ink) 45%, transparent); display: grid; align-items: end; }
+.sheet-in { background: var(--surface); border-radius: 22px 22px 0 0; padding: 18px 16px calc(18px + env(safe-area-inset-bottom, 0px)); max-height: 92%; overflow-y: auto; display: grid; gap: 12px; max-width: 520px; width: 100%; margin: 0 auto; box-sizing: border-box; }
+.field { display: grid; gap: 4px; }
+.field > span { font-size: 13px; color: var(--muted); }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.colors { display: flex; gap: 8px; flex-wrap: wrap; }
+.colors button { width: 34px; height: 34px; border-radius: 50%; padding: 0; border: 3px solid transparent; }
+.colors button[aria-pressed="true"] { border-color: var(--ink); }
+.presets { display: flex; gap: 6px; flex-wrap: wrap; }
+.presets button { padding: 4px 10px; font-size: 13px; border-radius: 999px; }
+
+.cheer { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 24px 16px; background: color-mix(in srgb, var(--ink) 55%, transparent); }
+.cheer-in { background: var(--surface); border-radius: 22px; padding: 26px 20px; text-align: center; display: grid; gap: 12px; max-width: 360px; width: 100%; }
+.cheer h2 { font-size: 24px; }
+canvas.confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 31; }
+.toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 9px 16px; border-radius: 999px; font-size: 14px; z-index: 40; max-width: calc(100% - 32px); text-align: center; }
+.banner { font-size: 13px; padding: 8px 12px; border-radius: 10px; background: var(--accent-soft); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<div class="wrap">
+  <div id="banner" class="banner" hidden></div>
+
+  <!-- 홈 -->
+  <main id="home" class="stack">
+    <header class="hero">
+      <div class="label">우쿨렐레 · 곡 연습 노트</div>
+      <h1>우쿨 레퍼토리</h1>
+      <div class="summary" id="summary"></div>
+    </header>
+    <div class="songs" id="songs"></div>
+    <button class="add" id="addSong">+ 연습할 곡 추가</button>
+    <details class="card" id="doneBox" hidden>
+      <summary>완료한 곡 <span class="note" id="doneCount"></span></summary>
+      <div class="songs" id="doneSongs"></div>
+    </details>
+    <details class="card">
+      <summary>설정 · 기록 옮기기</summary>
+      <div class="row spread"><span>+1 누를 때 소리</span><button id="sndBtn" aria-pressed="true">🔔 켜짐</button></div>
+      <div class="note">다른 폰이나 새로 설치한 앱으로 옮길 때 써요. 악보 파일은 용량이 커서 빠지니, 새 폰에서 다시 첨부해 주세요.</div>
+      <div class="row"><button id="bkCopy">기록 복사하기</button><button id="bkOpen">기록 붙여넣기</button></div>
+      <div id="bkBox" class="field" hidden>
+        <textarea id="bkText" placeholder="복사한 기록을 여기에 붙여넣으세요"></textarea>
+        <div class="row"><button class="primary" id="bkLoad">불러오기</button><button id="bkClose">닫기</button></div>
+        <div class="note" id="bkMsg"></div>
+      </div>
+    </details>
+  </main>
+
+  <!-- 곡 화면 -->
+  <section id="detail" class="stack" hidden>
+    <div class="top">
+      <button class="ghost back" id="back">‹ 곡 목록</button>
+      <span style="flex:1"></span>
+      <button class="ghost" id="edit">편집</button>
+    </div>
+    <div class="head">
+      <div class="av" id="dAv"></div>
+      <div style="min-width:0"><h2 id="dTitle" style="font-size:22px"></h2><div class="note" id="dArtist"></div></div>
+    </div>
+    <div class="phases" id="phases"></div>
+
+    <!-- 연습 타이머 -->
+    <div class="card">
+      <div class="row spread"><h2>연습 시간</h2><span class="note num" id="tTotal"></span></div>
+      <div class="row spread">
+        <div class="clock" id="tClock">00:00</div>
+        <button class="timerbtn primary" id="tBtn">▶ 연습 시작</button>
+      </div>
+      <div class="field"><span>지금 연습하는 부분</span><div class="chips" id="tPart"></div></div>
+      <div class="note" id="tToday"></div>
+    </div>
+
+    <!-- 악보 -->
+    <div class="card">
+      <div class="row spread"><h2>악보</h2><span class="note">눌러서 크게 보기</span></div>
+      <div class="files" id="files"></div>
+      <input type="file" id="fileIn" accept="image/*,application/pdf" multiple hidden>
+    </div>
+
+    <!-- 1단계 -->
+    <div class="card" id="c1">
+      <div class="row spread"><h2>① 나눠서 외우기</h2><span class="note num" id="pSum"></span></div>
+      <div class="parts" id="parts"></div>
+      <div class="row"><input id="newPart" placeholder="구간 추가 (예: 후렴)" maxlength="30" style="flex:1"><button id="addPart">추가</button></div>
+    </div>
+
+    <!-- 2단계 -->
+    <div class="card" id="c2">
+      <div class="row spread"><h2>② 템포 올리기</h2><span class="note num" id="bSum"></span></div>
+      <svg class="tempochart" id="tempoChart" viewBox="0 0 340 120" role="img" aria-label="날짜별로 깔끔하게 친 템포"></svg>
+      <div class="row">
+        <input class="bpmin" id="bpmIn" type="number" min="30" max="260" inputmode="numeric" aria-label="깔끔하게 친 템포(BPM)">
+        <span class="note">BPM에서</span>
+        <button class="primary" id="bpmRec" style="flex:1">깔끔하게 쳤어요</button>
+      </div>
+      <div class="row spread">
+        <div class="row" style="gap:6px">
+          <button id="mDown" aria-label="메트로놈 5 내리기">−5</button>
+          <span class="num" style="font-size:18px"><span id="mBpm">80</span> BPM</span>
+          <button id="mUp" aria-label="메트로놈 5 올리기">+5</button>
+        </div>
+        <div class="beats" id="beats" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+        <button id="mBtn">▶ 메트로놈</button>
+      </div>
+      <div class="note" id="bHint"></div>
+    </div>
+
+    <!-- 3단계 -->
+    <div class="card counter" id="c3">
+      <h2 style="justify-self:start">③ 처음부터 끝까지</h2>
+      <div class="ringbox">
+        <svg viewBox="0 0 120 120" aria-hidden="true">
+          <circle cx="60" cy="60" r="52" style="stroke: var(--track)"></circle>
+          <circle id="ring" cx="60" cy="60" r="52" stroke-linecap="round" stroke-dasharray="0 400"></circle>
+        </svg>
+        <div class="ringtext"><div class="big" id="dCount">0</div><div class="note num" id="dOf">/ 20회</div></div>
+      </div>
+      <div class="note" id="dToday"></div>
+      <button class="plus" id="dPlus">+1 끝까지 한 번</button>
+      <button class="small" id="dMinus">잘못 눌렀어요 −1</button>
+    </div>
+
+    <div class="card">
+      <div class="row spread"><h2>미션</h2><span id="dDue"></span></div>
+      <div id="dMission"></div>
+      <div class="steps" id="dSteps"></div>
+    </div>
+
+    <div class="card">
+      <div class="row spread"><h2>연습 일지</h2><span class="note" id="jSum"></span></div>
+      <div class="journal" id="journal"></div>
+    </div>
+
+    <div class="card">
+      <h2>메모</h2>
+      <textarea id="mText" maxlength="500" placeholder="예: 브릿지 코드 전환이 느림. 다음엔 70 BPM부터"></textarea>
+      <div class="row"><button class="primary" id="mAdd">메모 남기기</button></div>
+      <div class="memos" id="dMemos"></div>
+    </div>
+
+    <div class="row">
+      <button id="dDone"></button>
+      <span style="flex:1"></span>
+      <button class="danger" id="dDel">곡 삭제</button>
+    </div>
+  </section>
+</div>
+
+<!-- 곡 추가·편집 -->
+<div class="sheet" id="sheet" hidden>
+  <form class="sheet-in" id="form" autocomplete="off">
+    <div class="row spread"><h2 id="fTitle">연습할 곡 추가</h2><button type="button" class="ghost" id="fClose" aria-label="닫기">✕</button></div>
+    <label class="field"><span>곡 이름 *</span><input id="fName" required maxlength="60" placeholder="연습할 곡 이름"></label>
+    <label class="field"><span>가수 · 작곡가 (선택)</span><input id="fArtist" maxlength="60"></label>
+    <div class="field">
+      <span>① 외울 구간 (한 줄에 하나, 선택)</span>
+      <div class="presets"><button type="button" id="fPartsPreset">기본 구간 넣기</button></div>
+      <textarea id="fParts" maxlength="600" placeholder="인트로&#10;A&#10;B&#10;후렴&#10;브릿지&#10;아웃트로"></textarea>
+    </div>
+    <div class="grid2">
+      <label class="field"><span>② 시작 템포 (BPM)</span><input id="fBpm0" type="number" min="30" max="260" inputmode="numeric" placeholder="예: 60"></label>
+      <label class="field"><span>② 목표 템포 (BPM)</span><input id="fBpm1" type="number" min="30" max="260" inputmode="numeric" placeholder="예: 원곡 120"></label>
+    </div>
+    <div class="field">
+      <span>③ 처음부터 끝까지 몇 번 칠까요? *</span>
+      <div class="presets" id="fPresets"></div>
+      <input id="fTarget" type="number" min="1" max="9999" inputmode="numeric" required>
+    </div>
+    <label class="field"><span>목표 날짜 (선택)</span><input id="fDue" type="date"></label>
+    <label class="field"><span>이 곡의 미션 (선택)</span><textarea id="fMission" maxlength="300" placeholder="예: 인트로 핑거스타일을 틀리지 않고"></textarea></label>
+    <label class="field"><span>체크리스트 (한 줄에 하나, 선택)</span><textarea id="fSteps" maxlength="800" placeholder="코드 모양 외우기&#10;스트럼 패턴 익히기"></textarea></label>
+    <div class="field"><span>색</span><div class="colors" id="fColors"></div></div>
+    <button class="primary" type="submit">저장</button>
+  </form>
+</div>
+
+<!-- 악보 보기 -->
+<div class="viewer" id="viewer" hidden>
+  <div class="vbar">
+    <button id="vClose">✕ 닫기</button>
+    <span class="name" id="vName"></span>
+    <button id="vZoom">확대</button>
+    <button id="vDel">삭제</button>
+  </div>
+  <div class="vbody" id="vBody"></div>
+</div>
+
+<div class="cheer" id="cheer" hidden>
+  <div class="cheer-in">
+    <div style="font-size:40px" id="cheerIcon">🌺</div>
+    <h2 id="cheerHead">미션 완료!</h2>
+    <p id="cheerText" style="margin:0"></p>
+    <button class="primary" id="cheerDone">완료한 곡으로 옮기기</button>
+    <button id="cheerMore">목표 늘려서 계속하기 (+10회)</button>
+    <button class="ghost" id="cheerClose">닫기</button>
+  </div>
+</div>
+<canvas class="confetti" id="confetti" hidden></canvas>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const pad = n => String(n).padStart(2, "0");
+  const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const parse = s => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+  const fmt = n => n.toLocaleString("ko-KR");
+  const esc = t => String(t ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const ls = {
+    get(k, f) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : f; } catch { return f; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+  };
+  const COLORS = ["#127a7a", "#e2675a", "#d99a1e", "#7b62b8", "#3f8f4e", "#2f74b5"];
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const KEY = "repertoire";
+  const today = () => ymd(new Date());
+  const mmss = sec => { sec = Math.max(0, Math.floor(sec)); const h = Math.floor(sec / 3600), m = Math.floor(sec / 60) % 60, s = sec % 60; return h ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`; };
+  const hm = min => { min = Math.round(min); if (min < 60) return `${min}분`; const h = Math.floor(min / 60), m = min % 60; return m ? `${h}시간 ${m}분` : `${h}시간`; };
+  const md = k => { const d = parse(k); return `${d.getMonth() + 1}/${d.getDate()}`; };
+
+  /* 곡 하나:
+     { id, title, artist, color, created, done, doneAt,
+       parts: [{ id, name, mem: 외운 날짜|null }],            ① 나눠서 외우기
+       tempo: { start, target }, bpm: { 날짜: 그날 최고 BPM }, ② 템포 올리기
+       target, log: { 날짜: 완곡 횟수 },                       ③ 처음부터 끝까지
+       sessions: [{ d, min, part: 구간 id|null }], timer: { at: 시작 ms, part } | null,
+       due, mission, steps: [{ t, done }], notes: [{ id, d, text }], files: [{ id, name, type }] } */
+  let state = { songs: [] };
+  let save = async () => ls.set(KEY, state);
+  let view = { song: null };
+
+  function toast(msg) { const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, 2400); }
+  const song = id => state.songs.find(s => s.id === id);
+  const plays = s => Object.values(s.log || {}).reduce((a, b) => a + b, 0);
+  const bestBpm = s => Math.max(0, ...Object.values(s.bpm || {}));
+  const minutes = (s, f = () => true) => (s.sessions || []).filter(f).reduce((a, x) => a + x.min, 0) + (s.timer && f({ d: today(), part: s.timer.part }) ? (Date.now() - s.timer.at) / 60000 : 0);
+  function fix(s) {
+    s.parts ||= []; s.tempo ||= { start: null, target: null }; s.bpm ||= {}; s.log ||= {}; s.sessions ||= [];
+    s.steps ||= []; s.notes ||= []; s.files ||= []; if (s.timer === undefined) s.timer = null;
+    return s;
+  }
+  // 지금 단계: 외울 구간이 남았으면 1, 목표 템포에 못 닿았으면 2, 아니면 3
+  function phase(s) {
+    if (s.parts.length && s.parts.some(p => !p.mem)) return 1;
+    if (s.tempo.target && bestBpm(s) < s.tempo.target) return 2;
+    return 3;
+  }
+  function phaseText(s) {
+    const ph = phase(s);
+    if (ph === 1) return `① 외운 구간 ${s.parts.filter(p => p.mem).length}/${s.parts.length}`;
+    if (ph === 2) return `② 템포 ${bestBpm(s) || s.tempo.start || "–"}/${s.tempo.target} BPM`;
+    return `③ 완곡 ${fmt(plays(s))}/${fmt(s.target)}회`;
+  }
+  function lastDay(s) {
+    const ks = [...Object.keys(s.log), ...Object.keys(s.bpm), ...s.sessions.map(x => x.d), ...s.parts.filter(p => p.mem).map(p => p.mem)].sort();
+    return ks[ks.length - 1] || null;
+  }
+  function agoText(k) {
+    if (!k) return "아직 시작 전";
+    const n = Math.round((parse(today()) - parse(k)) / 864e5);
+    return n === 0 ? "오늘 연습" : n === 1 ? "어제 연습" : `${n}일 전 연습`;
+  }
+  const dday = s => s.due ? Math.round((parse(s.due) - parse(today())) / 864e5) : null;
+
+  // ---------- 홈 ----------
+  function cardHTML(s, done) {
+    const ph = phase(s), dd = dday(s);
+    let p = ph === 1 ? s.parts.filter(x => x.mem).length / s.parts.length
+      : ph === 2 ? Math.min(1, Math.max(0, ((bestBpm(s) || s.tempo.start || 0) - (s.tempo.start || 0)) / Math.max(1, s.tempo.target - (s.tempo.start || 0))))
+      : Math.min(1, plays(s) / s.target);
+    let badge = "";
+    if (s.timer) badge = `<span class="badge runbadge">연습 중</span>`;
+    else if (done) badge = `<span class="badge">완료</span>`;
+    else if (ph === 3 && plays(s) >= s.target) badge = `<span class="badge">목표 달성</span>`;
+    else if (dd !== null) badge = dd < 0 ? `<span class="badge late">D+${-dd}</span>` : `<span class="badge sun">D-${dd === 0 ? "day" : dd}</span>`;
+    const tm = minutes(s);
+    return `<div class="song${done ? " donecard" : ""}" data-id="${s.id}" role="button" tabindex="0" aria-label="${esc(s.title)} 열기">
+      <div class="av" style="background:${s.color}">${esc(s.title.trim().charAt(0) || "♪")}</div>
+      <div style="min-width:0">
+        <div class="row" style="gap:6px"><span class="t">${esc(s.title)}</span>${badge}</div>
+        <div class="sub"><span class="num">${phaseText(s)}</span>${tm >= 1 ? ` · 총 ${hm(tm)}` : ""} · ${agoText(lastDay(s))}</div>
+        <div class="mini"><i style="width:${p * 100}%;background:${s.color}"></i></div>
+      </div>
+      ${done ? "" : `<button class="quick" data-plus="${s.id}" style="background:${s.color}" aria-label="${esc(s.title)} 끝까지 1회 추가">+1</button>`}
+    </div>`;
+  }
+  function renderHome() {
+    const active = state.songs.filter(s => !s.done), done = state.songs.filter(s => s.done);
+    active.sort((a, b) => (!!b.timer - !!a.timer) || (lastDay(b) || b.created || "").localeCompare(lastDay(a) || a.created || ""));
+    const now = new Date(), mon = new Date(now); mon.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+    const wk = ymd(mon), td = today();
+    let wMin = 0, tMin = 0;
+    for (const s of state.songs) { wMin += minutes(s, x => x.d >= wk && x.d <= td); tMin += minutes(s, x => x.d === td); }
+    $("summary").innerHTML = `<span class="pill">연습 중 <b>${active.length}</b>곡</span><span class="pill">오늘 <b>${hm(tMin)}</b></span><span class="pill">이번 주 <b>${hm(wMin)}</b></span>`;
+    $("songs").innerHTML = active.length ? active.map(s => cardHTML(s, false)).join("") : `
+      <div class="card empty">
+        <svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true"><rect x="29" y="4" width="6" height="30" rx="2" fill="var(--accent)"/><rect x="26" y="2" width="12" height="9" rx="3" fill="var(--accent)"/><circle cx="32" cy="38" r="11" fill="var(--sun)"/><circle cx="32" cy="50" r="13" fill="var(--sun)"/><circle cx="32" cy="41" r="4" fill="var(--ink)"/></svg>
+        <b>아직 연습 중인 곡이 없어요</b>
+        <span class="note">아래 <b>+ 연습할 곡 추가</b>를 눌러 곡을 등록해 보세요. 구간을 나눠 외우고 → 템포를 올리고 → 처음부터 끝까지 반복하는 순서로 기록해요.</span>
+      </div>`;
+    $("doneBox").hidden = !done.length;
+    $("doneCount").textContent = done.length ? `${done.length}곡` : "";
+    $("doneSongs").innerHTML = done.sort((a, b) => (b.doneAt || "").localeCompare(a.doneAt || "")).map(s => cardHTML(s, true)).join("");
+  }
+  function onListClick(e) {
+    const q = e.target.closest("[data-plus]");
+    if (q) { e.stopPropagation(); addPlay(q.dataset.plus, 1); return; }
+    const c = e.target.closest(".song"); if (c) openSong(c.dataset.id);
+  }
+  $("songs").addEventListener("click", onListClick); $("doneSongs").addEventListener("click", onListClick);
+  const onKey = e => { const c = e.target.closest(".song"); if (c && e.target === c && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); openSong(c.dataset.id); } };
+  $("songs").addEventListener("keydown", onKey); $("doneSongs").addEventListener("keydown", onKey);
+
+  // ---------- 곡 화면 ----------
+  function openSong(id) { view.song = id; $("home").hidden = true; $("detail").hidden = false; resetDel(); stopMetro(); const s = song(id); $("bpmIn").value = suggestBpm(s); $("mBpm").textContent = suggestBpm(s); render(); renderFiles(); window.scrollTo(0, 0); }
+  function goHome() { stopMetro(); view.song = null; $("detail").hidden = true; $("home").hidden = false; render(); }
+  $("back").onclick = goHome;
+  const suggestBpm = s => { const b = bestBpm(s); return b ? Math.min(s.tempo.target || 260, b + 5) : (s.tempo.start || 60); };
+
+  function renderDetail() {
+    const s = song(view.song); if (!s) { goHome(); return; }
+    const ph = phase(s);
+    $("dAv").style.background = s.color; $("dAv").textContent = s.title.trim().charAt(0) || "♪";
+    $("dTitle").textContent = s.title; $("dArtist").textContent = s.artist || "";
+    // 단계 표시
+    const memN = s.parts.filter(p => p.mem).length, best = bestBpm(s), c = plays(s);
+    const ph1 = s.parts.length ? { v: `${memN}/${s.parts.length}`, p: memN / s.parts.length } : { v: "구간 없음", p: 1 };
+    const ph2 = s.tempo.target ? { v: `${best || "–"}/${s.tempo.target}`, p: Math.min(1, Math.max(0, ((best || s.tempo.start || 0) - (s.tempo.start || 0)) / Math.max(1, s.tempo.target - (s.tempo.start || 0)))) } : { v: "목표 없음", p: 1 };
+    const ph3 = { v: `${c}/${s.target}`, p: Math.min(1, c / s.target) };
+    $("phases").innerHTML = [["① 외우기", ph1], ["② 템포", ph2], ["③ 완곡", ph3]].map(([n, x], i) =>
+      `<button class="phase${ph === i + 1 ? " now" : ""}${ph > i + 1 ? " done" : ""}" data-go="c${i + 1}"><b>${n}${ph > i + 1 ? " ✓" : ""}</b><span>${x.v}</span><div class="bar"><i style="width:${x.p * 100}%"></i></div></button>`).join("");
+    // 타이머
+    renderTimer(s);
+    // ① 구간
+    $("pSum").textContent = s.parts.length ? `외움 ${memN}/${s.parts.length}` : "";
+    $("parts").innerHTML = s.parts.length ? s.parts.map(p => {
+      const pm = minutes(s, x => x.part === p.id && (!p.mem || x.d <= p.mem));
+      const pd = new Set(s.sessions.filter(x => x.part === p.id && (!p.mem || x.d <= p.mem)).map(x => x.d)).size;
+      const took = [pd ? `${pd}일` : "", pm >= 1 ? hm(pm) : ""].filter(Boolean).join(" · ");
+      const info = p.mem ? `${md(p.mem)} 외움${took ? ` · ${took} 걸림` : ""}` : pm >= 1 ? `익히는 중 · ${hm(pm)} 연습` : "익히는 중";
+      return `<div class="part"><b>${esc(p.name)}</b><span class="note">${info}</span><button data-mem="${p.id}" class="${p.mem ? "mem" : ""}">${p.mem ? "✓ 외웠어요" : "외웠어요"}</button></div>`;
+    }).join("") : `<span class="note">곡을 구간으로 나눠 하나씩 외워 보세요. 외웠어요를 누르면 날짜와 걸린 시간이 남아요.</span>`;
+    // ② 템포
+    $("bSum").textContent = s.tempo.target ? `최고 ${best || "–"} / 목표 ${s.tempo.target} BPM` : best ? `최고 ${best} BPM` : "";
+    drawTempo(s);
+    $("bHint").textContent = !s.tempo.target ? "편집에서 시작·목표 템포를 정하면 진행이 보여요." : best >= s.tempo.target ? "목표 템포 달성! 이제 ③ 처음부터 끝까지 반복해 보세요." : `다음 도전: ${suggestBpm(s)} BPM · 목표까지 ${s.tempo.target - (best || s.tempo.start || 0)} BPM`;
+    // ③ 완곡
+    const C = 2 * Math.PI * 52, p3 = Math.min(1, c / s.target);
+    $("ring").setAttribute("stroke-dasharray", `${p3 * C} ${C}`); $("ring").style.stroke = s.color;
+    $("dCount").textContent = fmt(c); $("dOf").textContent = `/ ${fmt(s.target)}회`;
+    const t = s.log[today()] || 0;
+    $("dToday").textContent = c >= s.target ? `목표 ${fmt(s.target)}회 달성! 오늘 ${t}회` : `목표까지 ${fmt(s.target - c)}회 · 오늘 ${t}회`;
+    $("dPlus").style.background = s.color; $("dPlus").disabled = $("dMinus").disabled = !!s.done;
+    // 미션
+    const dd = dday(s);
+    $("dDue").innerHTML = dd === null ? "" : `<span class="badge ${dd < 0 ? "late" : "sun"}">${md(s.due)}까지 · ${dd < 0 ? "D+" + -dd : dd === 0 ? "D-day" : "D-" + dd}</span>`;
+    $("dMission").innerHTML = s.mission ? `<p style="margin:0;white-space:pre-wrap">${esc(s.mission)}</p>` : `<span class="note">편집에서 이 곡만의 미션과 체크리스트를 정할 수 있어요.</span>`;
+    $("dSteps").innerHTML = s.steps.map((x, i) => `<label class="step${x.done ? " done" : ""}"><input type="checkbox" data-step="${i}" ${x.done ? "checked" : ""}><span>${esc(x.t)}</span></label>`).join("")
+      + (s.steps.length ? `<div class="note">체크리스트 ${s.steps.filter(x => x.done).length} / ${s.steps.length}</div>` : "");
+    renderJournal(s);
+    // 메모
+    const ns = [...s.notes].sort((a, b) => b.d.localeCompare(a.d) || b.id.localeCompare(a.id));
+    $("dMemos").innerHTML = ns.length ? ns.map(n => `<div class="memo"><b>${md(n.d)}</b><button data-delmemo="${n.id}" class="${armedMemo === n.id ? "danger armed" : ""}">${armedMemo === n.id ? "삭제 확인" : "삭제"}</button><p>${esc(n.text)}</p></div>`).join("")
+      : `<span class="note">연습하면서 느낀 점, 막힌 부분, 다음에 할 것을 남겨 보세요.</span>`;
+    $("dDone").textContent = s.done ? "다시 연습하기" : "완료한 곡으로 옮기기";
+  }
+  $("phases").addEventListener("click", e => { const b = e.target.closest("[data-go]"); if (b) $(b.dataset.go).scrollIntoView({ behavior: "smooth", block: "start" }); });
+
+  // 템포 계단 그래프
+  function drawTempo(s) {
+    const pts = Object.entries(s.bpm).sort(([a], [b]) => a.localeCompare(b));
+    const W = 340, H = 120, L = 30, R = 10, T = 14, B = 20;
+    const lo = Math.min(s.tempo.start || Infinity, ...pts.map(x => x[1]), s.tempo.target || Infinity) - 5;
+    const hi = Math.max(s.tempo.target || 0, ...pts.map(x => x[1])) + 5;
+    if (!pts.length && !s.tempo.target) { $("tempoChart").innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle">깔끔하게 친 템포를 기록하면 계단처럼 쌓여요</text>`; return; }
+    const lo2 = isFinite(lo) ? lo : 50, hi2 = hi > lo2 ? hi : lo2 + 20;
+    const y = v => T + (H - T - B) * (1 - (v - lo2) / (hi2 - lo2));
+    const n = Math.max(pts.length, 1), x = i => L + (W - L - R) * (n === 1 ? 0.5 : i / (n - 1));
+    let g = "";
+    if (s.tempo.target) g += `<line x1="${L}" x2="${W - R}" y1="${y(s.tempo.target)}" y2="${y(s.tempo.target)}" stroke="var(--sun)" stroke-width="2" stroke-dasharray="5 4"/><text x="${L - 4}" y="${y(s.tempo.target) + 3}" text-anchor="end">${s.tempo.target}</text>`;
+    if (s.tempo.start) g += `<text x="${L - 4}" y="${y(s.tempo.start) + 3}" text-anchor="end">${s.tempo.start}</text><line x1="${L}" x2="${W - R}" y1="${y(s.tempo.start)}" y2="${y(s.tempo.start)}" stroke="var(--line)"/>`;
+    if (pts.length) {
+      let run = 0, path = "";
+      pts.forEach(([, v], i) => { run = Math.max(run, v); const X = x(i), Y = y(run); path += i ? ` H${X.toFixed(1)} V${Y.toFixed(1)}` : `M${X.toFixed(1)} ${Y.toFixed(1)}`; });
+      g += `<path d="${path}" fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linejoin="round"/>`;
+      pts.forEach(([d, v], i) => { g += `<circle cx="${x(i)}" cy="${y(v)}" r="3.5" fill="${s.color}"/>`; });
+      const [ld, lv] = pts[pts.length - 1];
+      g += `<text class="v" x="${Math.min(x(pts.length - 1), W - R - 10)}" y="${y(lv) - 8}" text-anchor="middle">${lv}</text>`;
+      g += `<text x="${x(0)}" y="${H - 4}" text-anchor="${n === 1 ? "middle" : "start"}">${md(pts[0][0])}</text>`;
+      if (n > 1) g += `<text x="${x(n - 1)}" y="${H - 4}" text-anchor="end">${md(ld)}</text>`;
+    }
+    $("tempoChart").innerHTML = g;
+  }
+  $("bpmRec").onclick = () => {
+    const s = song(view.song), v = parseInt($("bpmIn").value, 10);
+    if (!(v >= 30 && v <= 260)) { $("bpmIn").focus(); toast("30~260 사이 BPM을 넣어 주세요"); return; }
+    const k = today(), was = bestBpm(s), hitBefore = s.tempo.target && was >= s.tempo.target;
+    s.bpm[k] = Math.max(s.bpm[k] || 0, v); commit();
+    $("bpmIn").value = suggestBpm(s); $("mBpm").textContent = suggestBpm(s);
+    if (s.tempo.target && !hitBefore && v >= s.tempo.target) celebrate(s, "tempo");
+    else toast(v > was ? `${v} BPM 최고 기록!` : `${v} BPM 기록했어요`);
+  };
+
+  // ---------- 연습 타이머 (앱을 닫아도 시작 시각 기준으로 계속 흘러감) ----------
+  let selPart = null, tick = null;
+  function renderTimer(s) {
+    const run = !!s.timer;
+    if (run) selPart = s.timer.part;
+    $("tBtn").textContent = run ? "■ 연습 끝" : "▶ 연습 시작"; $("tBtn").classList.toggle("run", run); $("tBtn").disabled = !!s.done;
+    $("tPart").innerHTML = [[null, "곡 전체"], ...s.parts.map(p => [p.id, p.name + (p.mem ? " ✓" : "")])]
+      .map(([id, n]) => `<button aria-pressed="${selPart === id}" data-part="${id ?? ""}" ${run ? "disabled" : ""}>${esc(n)}</button>`).join("");
+    const td = minutes(s, x => x.d === today());
+    $("tTotal").textContent = `총 ${hm(minutes(s))}`;
+    $("tToday").textContent = run ? `${s.timer.part ? (s.parts.find(p => p.id === s.timer.part)?.name || "") + " 연습 중 · " : ""}다른 앱에 다녀와도 시간은 계속 재요` : td >= 1 ? `오늘 ${hm(td)} 연습했어요` : "연습을 시작할 때 누르세요";
+    updateClock();
+  }
+  function updateClock() {
+    const s = view.song && song(view.song);
+    $("tClock").textContent = s && s.timer ? mmss((Date.now() - s.timer.at) / 1000) : "00:00";
+  }
+  setInterval(() => { if (view.song && song(view.song)?.timer) updateClock(); }, 1000);
+  $("tPart").addEventListener("click", e => { const b = e.target.closest("[data-part]"); if (!b) return; selPart = b.dataset.part || null; renderDetail(); });
+  $("tBtn").onclick = () => {
+    const s = song(view.song);
+    if (!s.timer) { s.timer = { at: Date.now(), part: selPart }; commit(); toast("연습 시작! 끝나면 ■ 연습 끝을 눌러요"); return; }
+    const min = (Date.now() - s.timer.at) / 60000;
+    const part = s.timer.part; s.timer = null;
+    if (min >= 0.5) { s.sessions.push({ d: today(), min: Math.round(min * 10) / 10, part }); toast(`${hm(Math.max(1, min))} 연습을 기록했어요`); }
+    else toast("30초가 안 돼서 기록하지 않았어요");
+    commit();
+  };
+
+  // ---------- ① 구간 ----------
+  $("parts").addEventListener("click", e => {
+    const b = e.target.closest("[data-mem]"); if (!b) return;
+    const s = song(view.song), p = s.parts.find(x => x.id === b.dataset.mem);
+    p.mem = p.mem ? null : today(); commit();
+    if (p.mem) {
+      if (s.parts.every(x => x.mem)) celebrate(s, "parts"); else { chimeTap(2); toast(`「${p.name}」 외웠어요!`); }
+    }
+  });
+  $("addPart").onclick = () => {
+    const n = $("newPart").value.trim(); if (!n) { $("newPart").focus(); return; }
+    song(view.song).parts.push({ id: uid(), name: n, mem: null }); $("newPart").value = ""; commit();
+  };
+  $("newPart").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); $("addPart").click(); } });
+
+  // ---------- ③ 완곡 ----------
+  function addPlay(id, n) {
+    const s = song(id); if (!s || s.done) return;
+    const k = today(), before = plays(s), cur = s.log[k] || 0;
+    if (n < 0 && cur <= 0) { toast("오늘 기록한 횟수가 없어서 뺄 수 없어요"); return; }
+    s.log[k] = cur + n; if (!s.log[k]) delete s.log[k];
+    commit();
+    if (n > 0) {
+      chimeTap(before);
+      if (before < s.target && before + 1 >= s.target) setTimeout(() => celebrate(s, "plays"), 250);
+      else if (view.song !== id) toast(`「${s.title}」 끝까지 ${fmt(before + 1)}회`);
+    } else chimeTap(-1);
+  }
+  $("dPlus").onclick = () => addPlay(view.song, 1);
+  $("dMinus").onclick = () => addPlay(view.song, -1);
+
+  // ---------- 미션·일지·메모 ----------
+  $("dSteps").addEventListener("change", e => {
+    const i = e.target.dataset.step; if (i === undefined) return;
+    const s = song(view.song); s.steps[+i].done = e.target.checked; commit();
+    if (s.steps.every(x => x.done)) toast("체크리스트를 모두 해냈어요!");
+  });
+  function renderJournal(s) {
+    const days = new Set([...Object.keys(s.log), ...Object.keys(s.bpm), ...s.sessions.map(x => x.d), ...s.parts.filter(p => p.mem).map(p => p.mem), ...s.notes.map(n => n.d)]);
+    const list = [...days].sort().reverse();
+    $("jSum").textContent = list.length ? `${list.length}일 연습` : "";
+    $("journal").innerHTML = list.length ? list.slice(0, 30).map(d => {
+      const bits = [];
+      const m = s.sessions.filter(x => x.d === d).reduce((a, x) => a + x.min, 0); if (m >= 1) bits.push(`⏱ ${hm(m)}`);
+      const mem = s.parts.filter(p => p.mem === d).map(p => p.name); if (mem.length) bits.push(`✓ ${mem.join(", ")} 외움`);
+      if (s.bpm[d]) bits.push(`♩ ${s.bpm[d]} BPM`);
+      if (s.log[d]) bits.push(`완곡 ${s.log[d]}회`);
+      const nn = s.notes.filter(n => n.d === d).length; if (nn) bits.push(`메모 ${nn}`);
+      const dt = parse(d);
+      return `<div class="jday"><b>${dt.getMonth() + 1}/${pad(dt.getDate())} (${"일월화수목금토"[dt.getDay()]})</b><span>${esc(bits.join(" · ") || "연습")}</span></div>`;
+    }).join("") : `<span class="note">연습 시간, 외운 구간, 템포, 완곡 횟수, 메모가 날짜별로 한 줄씩 모여요.</span>`;
+  }
+  let delArmed = false, armedMemo = null;
+  function resetDel() { delArmed = false; $("dDel").classList.remove("armed"); $("dDel").textContent = "곡 삭제"; }
+  $("dDel").onclick = async () => {
+    if (!delArmed) { delArmed = true; $("dDel").classList.add("armed"); $("dDel").textContent = "정말 삭제 (기록·악보도 지워져요)"; setTimeout(() => delArmed && resetDel(), 4000); return; }
+    const s = song(view.song);
+    for (const f of s.files) await files.del(f.id).catch(() => {});
+    state.songs = state.songs.filter(x => x.id !== s.id); resetDel(); commit(); goHome(); toast(`「${s.title}」을 삭제했어요`);
+  };
+  $("dDone").onclick = () => {
+    const s = song(view.song); s.done = !s.done; s.doneAt = s.done ? today() : null; if (s.done) s.timer = null; commit();
+    toast(s.done ? `「${s.title}」 완료! 홈 아래 '완료한 곡'에 보관했어요` : `「${s.title}」 다시 연습 목록으로 옮겼어요`);
+    if (s.done) goHome();
+  };
+  $("mAdd").onclick = () => {
+    const text = $("mText").value.trim(); if (!text) { $("mText").focus(); return; }
+    song(view.song).notes.push({ id: uid(), d: today(), text }); $("mText").value = ""; commit(); toast("메모를 남겼어요");
+  };
+  $("dMemos").addEventListener("click", e => {
+    const b = e.target.closest("[data-delmemo]"); if (!b) return;
+    const id = b.dataset.delmemo;
+    if (armedMemo !== id) { armedMemo = id; renderDetail(); setTimeout(() => { if (armedMemo === id) { armedMemo = null; renderDetail(); } }, 4000); return; }
+    const s = song(view.song); s.notes = s.notes.filter(n => n.id !== id); armedMemo = null; commit();
+  });
+
+  // ---------- 악보 (이 기기 안에만 저장: IndexedDB) ----------
+  const files = (() => {
+    let dbp = null;
+    const open = () => dbp ||= new Promise((res, rej) => { const r = indexedDB.open("rep-files", 1); r.onupgradeneeded = () => r.result.createObjectStore("f"); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+    const tx = async (mode, fn) => { const db = await open(); return new Promise((res, rej) => { const t = db.transaction("f", mode), st = t.objectStore("f"); const q = fn(st); t.oncomplete = () => res(q && q.result); t.onerror = () => rej(t.error); }); };
+    return { put: (id, blob) => tx("readwrite", st => st.put(blob, id)), get: id => tx("readonly", st => st.get(id)), del: id => tx("readwrite", st => st.delete(id)) };
+  })();
+  const urls = {};
+  async function fileURL(id) { if (urls[id]) return urls[id]; const b = await files.get(id); if (!b) return null; return (urls[id] = URL.createObjectURL(b)); }
+  async function renderFiles() {
+    const s = song(view.song); if (!s) return;
+    const items = await Promise.all(s.files.map(async f => ({ f, url: await fileURL(f.id).catch(() => null) })));
+    $("files").innerHTML = items.map(({ f, url }) => f.type.startsWith("image/") && url
+      ? `<button class="file" data-file="${f.id}" aria-label="${esc(f.name)} 보기"><img src="${url}" alt=""></button>`
+      : `<button class="file" data-file="${f.id}" aria-label="${esc(f.name)} 보기"><span class="pdf">${url ? "PDF" : "없음"}<small>${esc(f.name)}</small></span></button>`).join("")
+      + `<button class="file fileadd" id="fileAdd">+ 악보 첨부<br><span class="note" style="font-size:11px">사진 · PDF</span></button>`;
+  }
+  $("files").addEventListener("click", e => {
+    if (e.target.closest("#fileAdd")) { $("fileIn").click(); return; }
+    const b = e.target.closest("[data-file]"); if (b) openViewer(b.dataset.file);
+  });
+  $("fileIn").onchange = async () => {
+    const s = song(view.song), list = [...$("fileIn").files]; $("fileIn").value = "";
+    let ok = 0;
+    for (const f of list) {
+      if (!/^image\/|application\/pdf/.test(f.type)) continue;
+      if (f.size > 25 * 1024 * 1024) { toast(`${f.name}은 25MB가 넘어서 뺐어요`); continue; }
+      const id = uid();
+      try { await files.put(id, f); s.files.push({ id, name: f.name, type: f.type }); ok++; }
+      catch (e) { toast(e?.name === "QuotaExceededError" ? "이 기기에 저장 공간이 부족해요" : "이 화면에서는 악보를 저장할 수 없어요. 홈 화면 앱이나 사파리에서 열어 주세요."); break; }
+    }
+    if (ok) { commit(); renderFiles(); toast(`악보 ${ok}개를 붙였어요`); }
+  };
+  let vFile = null, vZoom = 1, vDelArmed = false;
+  async function openViewer(id) {
+    const s = song(view.song), f = s.files.find(x => x.id === id); if (!f) return;
+    const url = await fileURL(id).catch(() => null);
+    if (!url) { toast("이 기기에 파일이 없어요. 다시 첨부해 주세요."); }
+    vFile = id; vZoom = 1; vDelArmed = false; $("vDel").textContent = "삭제"; $("vName").textContent = f.name;
+    $("vZoom").hidden = !f.type.startsWith("image/");
+    $("vBody").innerHTML = !url ? "" : f.type.startsWith("image/") ? `<img src="${url}" alt="${esc(f.name)}" id="vImg">`
+      : `<div style="padding:24px;display:grid;gap:12px;color:#e4eef2"><p style="margin:0">PDF 악보예요. 아래를 누르면 크게 열려요.</p><a href="${url}" target="_blank" rel="noopener" style="color:#7fe0d8;font-weight:600">${esc(f.name)} 열기</a></div>`;
+    $("viewer").hidden = false;
+  }
+  $("vClose").onclick = () => { $("viewer").hidden = true; vFile = null; };
+  $("vZoom").onclick = () => { vZoom = vZoom >= 3 ? 1 : vZoom + 1; const im = $("vImg"); if (im) im.style.width = `${vZoom * 100}%`; $("vZoom").textContent = vZoom === 1 ? "확대" : vZoom >= 3 ? "원래대로" : "더 확대"; };
+  $("vDel").onclick = async () => {
+    if (!vDelArmed) { vDelArmed = true; $("vDel").textContent = "삭제 확인"; return; }
+    const s = song(view.song); s.files = s.files.filter(x => x.id !== vFile); await files.del(vFile).catch(() => {});
+    if (urls[vFile]) { URL.revokeObjectURL(urls[vFile]); delete urls[vFile]; }
+    $("viewer").hidden = true; vFile = null; commit(); renderFiles(); toast("악보를 지웠어요");
+  };
+
+  // ---------- 곡 추가·편집 ----------
+  let editing = null, fColor = COLORS[0];
+  const PRESETS = [10, 20, 30, 50, 100];
+  function openForm(id) {
+    editing = id || null;
+    const s = id ? song(id) : null;
+    $("fTitle").textContent = s ? "곡 편집" : "연습할 곡 추가";
+    $("fName").value = s?.title || ""; $("fArtist").value = s?.artist || "";
+    $("fParts").value = (s?.parts || []).map(p => p.name).join("\n");
+    $("fBpm0").value = s?.tempo?.start || ""; $("fBpm1").value = s?.tempo?.target || "";
+    $("fTarget").value = s?.target || 20; $("fDue").value = s?.due || "";
+    $("fMission").value = s?.mission || ""; $("fSteps").value = (s?.steps || []).map(x => x.t).join("\n");
+    fColor = s?.color || COLORS[state.songs.length % COLORS.length];
+    drawColors(); drawPresets();
+    $("sheet").hidden = false; setTimeout(() => $("fName").focus(), 50);
+  }
+  function drawColors() { $("fColors").innerHTML = COLORS.map(c => `<button type="button" style="background:${c}" data-c="${c}" aria-pressed="${c === fColor}" aria-label="색 선택"></button>`).join(""); }
+  function drawPresets() { const v = +$("fTarget").value; $("fPresets").innerHTML = PRESETS.map(p => `<button type="button" data-p="${p}" class="${v === p ? "primary" : ""}">${p}회</button>`).join(""); }
+  $("fColors").addEventListener("click", e => { const b = e.target.closest("[data-c]"); if (b) { fColor = b.dataset.c; drawColors(); } });
+  $("fPresets").addEventListener("click", e => { const b = e.target.closest("[data-p]"); if (b) { $("fTarget").value = b.dataset.p; drawPresets(); } });
+  $("fTarget").addEventListener("input", drawPresets);
+  $("fPartsPreset").onclick = () => { if (!$("fParts").value.trim()) $("fParts").value = "인트로\nA\nB\n후렴\n브릿지\n아웃트로"; $("fParts").focus(); };
+  const closeForm = () => { $("sheet").hidden = true; editing = null; };
+  $("fClose").onclick = closeForm;
+  $("sheet").addEventListener("click", e => { if (e.target === $("sheet")) closeForm(); });
+  $("form").addEventListener("submit", e => {
+    e.preventDefault();
+    const title = $("fName").value.trim(), target = Math.max(1, Math.min(9999, parseInt($("fTarget").value, 10) || 0));
+    if (!title) { $("fName").focus(); return; }
+    const b0 = parseInt($("fBpm0").value, 10) || null, b1 = parseInt($("fBpm1").value, 10) || null;
+    const old = editing ? song(editing) : null;
+    const names = $("fParts").value.split("\n").map(t => t.trim()).filter(Boolean).slice(0, 30);
+    const parts = names.map(n => old?.parts.find(p => p.name === n) || { id: uid(), name: n, mem: null });
+    const steps = $("fSteps").value.split("\n").map(t => t.trim()).filter(Boolean).slice(0, 20).map(t => ({ t, done: !!old?.steps.find(x => x.t === t)?.done }));
+    const data = { title, artist: $("fArtist").value.trim(), parts, tempo: { start: b0, target: b1 }, target, due: $("fDue").value || "", mission: $("fMission").value.trim(), steps, color: fColor };
+    let id;
+    if (old) { Object.assign(old, data); id = old.id; }
+    else { id = uid(); state.songs.push(fix({ id, ...data, log: {}, bpm: {}, sessions: [], timer: null, notes: [], files: [], created: today(), done: false, doneAt: null })); }
+    closeForm(); commit();
+    if (!old) { toast(`「${title}」 추가!`); openSong(id); } else { toast("저장했어요"); if (view.song) { $("bpmIn").value = suggestBpm(song(view.song)); $("mBpm").textContent = suggestBpm(song(view.song)); } }
+  });
+  $("addSong").onclick = () => openForm();
+  $("edit").onclick = () => openForm(view.song);
+
+  // ---------- 축하 ----------
+  let cheerSong = null;
+  function celebrate(s, kind) {
+    cheerSong = s.id;
+    const plays3 = kind === "plays";
+    $("cheerIcon").textContent = kind === "parts" ? "🧠" : kind === "tempo" ? "🎵" : "🌺";
+    $("cheerHead").textContent = kind === "parts" ? "모든 구간을 외웠어요!" : kind === "tempo" ? "목표 템포 달성!" : "미션 완료!";
+    $("cheerText").textContent = kind === "parts" ? `「${s.title}」의 ${s.parts.length}개 구간을 다 외웠어요. 이제 ② 템포를 올려 봐요.`
+      : kind === "tempo" ? `「${s.title}」을 ${s.tempo.target} BPM으로 깔끔하게 쳤어요. 이제 ③ 처음부터 끝까지 반복해 봐요.`
+      : `「${s.title}」을 처음부터 끝까지 ${fmt(s.target)}번 쳤어요. 정말 멋져요!`;
+    $("cheerDone").hidden = $("cheerMore").hidden = !plays3;
+    $("cheer").hidden = false; confetti(s.color); chimeFanfare();
+  }
+  $("cheerDone").onclick = () => { const s = song(cheerSong); $("cheer").hidden = true; if (s) { s.done = true; s.doneAt = today(); s.timer = null; commit(); goHome(); toast("완료한 곡에 보관했어요"); } };
+  $("cheerMore").onclick = () => { const s = song(cheerSong); $("cheer").hidden = true; if (s) { s.target += 10; commit(); toast(`목표를 ${s.target}회로 늘렸어요`); } };
+  $("cheerClose").onclick = () => { $("cheer").hidden = true; };
+  function confetti(color) {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const cv = $("confetti"), g = cv.getContext("2d"), dpr = devicePixelRatio || 1;
+    cv.hidden = false; cv.width = innerWidth * dpr; cv.height = innerHeight * dpr; g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const cols = [color, "#f2b33d", "#e2675a", "#3fb8b0", "#ffffff"];
+    const ps = Array.from({ length: 90 }, () => ({ x: innerWidth / 2, y: innerHeight * 0.35, vx: (Math.random() - 0.5) * 9, vy: -Math.random() * 9 - 3, r: Math.random() * 6 + 3, c: cols[Math.floor(Math.random() * cols.length)], a: Math.random() * 6 }));
+    let f = 0;
+    (function step() {
+      g.clearRect(0, 0, innerWidth, innerHeight);
+      for (const p of ps) { p.vy += 0.25; p.x += p.vx; p.y += p.vy; p.a += 0.15; g.fillStyle = p.c; g.save(); g.translate(p.x, p.y); g.rotate(p.a); g.fillRect(-p.r / 2, -p.r / 4, p.r, p.r / 2); g.restore(); }
+      if (++f < 110) requestAnimationFrame(step); else cv.hidden = true;
+    })();
+  }
+
+  // ---------- 소리: 종소리 + 메트로놈 (다른 앱에 다녀오면 닫고, 누를 때 새로 깨움) ----------
+  let ac = null, sndOn = ls.get("rep.sound", true);
+  function drawSnd() { $("sndBtn").setAttribute("aria-pressed", sndOn); $("sndBtn").textContent = sndOn ? "🔔 켜짐" : "🔕 꺼짐"; }
+  $("sndBtn").onclick = () => { sndOn = !sndOn; ls.set("rep.sound", sndOn); drawSnd(); if (sndOn) bell(hz(7), 0.5); };
+  drawSnd();
+  function audio() {
+    if (ac && (ac.state === "closed" || ac.state === "interrupted")) { try { ac.close(); } catch {} ac = null; }
+    if (!ac) { try { if (navigator.audioSession) navigator.audioSession.type = "playback"; } catch {} ac = new (window.AudioContext || window.webkitAudioContext)(); }
+    try { const b = ac.createBuffer(1, 1, ac.sampleRate), s = ac.createBufferSource(); s.buffer = b; s.connect(ac.destination); s.start(0); } catch {}
+    if (ac.state !== "running") ac.resume().catch(() => {});
+    return ac;
+  }
+  function closeAudio() { stopMetro(); try { if (ac) ac.close(); } catch {} ac = null; }
+  const hz = semi => 1046.5 * Math.pow(2, semi / 12);
+  function bell(freq, vol = 0.5, when = 0) {
+    try {
+      const a = audio(), t = a.currentTime + 0.01 + when;
+      [[1, 1, 0.8], [2, 0.3, 0.35], [3, 0.12, 0.15], [4, 0.06, 0.07]].forEach(([m, amp, d]) => {
+        const o = a.createOscillator(), g = a.createGain();
+        o.type = "sine"; o.frequency.value = freq * m;
+        g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol * amp, t + 0.001); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+        o.connect(g).connect(a.destination); o.start(t); o.stop(t + d + 0.05);
+      });
+    } catch {}
+  }
+  const OPEN = [7, 0, 4, 9];
+  function chimeTap(before) { if (!sndOn) return; if (before < 0) bell(hz(-5), 0.3); else bell(hz(OPEN[before % 4]), 0.55); }
+  function chimeFanfare() { if (sndOn) [7, 0, 4, 9, 12].forEach((x, i) => bell(hz(x), 0.5, i * 0.09)); }
+  // 메트로놈
+  let metroOn = false, metroTimer = null, nextT = 0, beat = 0;
+  const mbpm = () => +$("mBpm").textContent || 80;
+  function click(t, accent) {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = "triangle"; o.frequency.setValueAtTime((accent ? 2600 : 1900) * 1.15, t); o.frequency.exponentialRampToValueAtTime(accent ? 2600 : 1900, t + 0.01);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(accent ? 0.9 : 0.6, t + 0.001); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
+    o.connect(g).connect(ac.destination); o.start(t); o.stop(t + 0.06);
+  }
+  function schedule() {
+    while (nextT < ac.currentTime + 0.12) {
+      const b = beat % 4, t = nextT; click(t, b === 0);
+      setTimeout(() => { if (metroOn) [...$("beats").children].forEach((el, i) => el.classList.toggle("on", i === b)); }, Math.max(0, (t - ac.currentTime) * 1000));
+      nextT += 60 / mbpm(); beat++;
+    }
+  }
+  function stopMetro() { metroOn = false; clearInterval(metroTimer); metroTimer = null; $("mBtn").textContent = "▶ 메트로놈"; $("mBtn").classList.remove("primary"); [...$("beats").children].forEach(el => el.classList.remove("on")); }
+  $("mBtn").onclick = async () => {
+    if (metroOn) { stopMetro(); return; }
+    audio(); try { await ac.resume(); } catch {}
+    metroOn = true; beat = 0; nextT = ac.currentTime + 0.06; metroTimer = setInterval(schedule, 25);
+    $("mBtn").textContent = "■ 정지"; $("mBtn").classList.add("primary");
+  };
+  const setM = v => { v = Math.max(30, Math.min(260, v)); $("mBpm").textContent = v; $("bpmIn").value = v; };
+  $("mDown").onclick = () => setM(mbpm() - 5); $("mUp").onclick = () => setM(mbpm() + 5);
+  $("bpmIn").addEventListener("input", () => { const v = parseInt($("bpmIn").value, 10); if (v >= 30 && v <= 260) $("mBpm").textContent = v; });
+
+  // ---------- 기록 옮기기 ----------
+  $("bkCopy").onclick = async () => {
+    const code = "UKEREP-" + btoa(unescape(encodeURIComponent(JSON.stringify(state))));
+    try { await navigator.clipboard.writeText(code); toast("기록을 복사했어요 (악보 파일은 빠져요)"); }
+    catch { $("bkBox").hidden = false; $("bkText").value = code; $("bkText").select(); $("bkMsg").textContent = "자동 복사가 안 돼서 위 글자를 직접 복사해 주세요."; }
+  };
+  let bkArmed = false, bkData = null;
+  $("bkOpen").onclick = () => { $("bkBox").hidden = false; $("bkText").value = ""; $("bkMsg").textContent = ""; bkArmed = false; $("bkLoad").textContent = "불러오기"; $("bkText").focus(); };
+  $("bkClose").onclick = () => { $("bkBox").hidden = true; };
+  $("bkLoad").onclick = () => {
+    $("bkText").blur();
+    if (!bkArmed) {
+      const m = $("bkText").value.replace(/[​-‍﻿\s]/g, "").match(/UKEREP-([A-Za-z0-9+/=]+)/);
+      try { bkData = JSON.parse(decodeURIComponent(escape(atob(m[1])))); if (!Array.isArray(bkData.songs)) throw 0; }
+      catch { $("bkMsg").textContent = "기록 코드를 읽지 못했어요. '기록 복사하기'로 복사한 글자 전체를 붙여넣어 주세요."; return; }
+      bkArmed = true; $("bkLoad").textContent = "네, 이 기록으로 바꾸기";
+      $("bkMsg").textContent = `${bkData.songs.length}곡 기록을 찾았어요. 지금 기록이 이걸로 바뀌어요.`; return;
+    }
+    state = { songs: bkData.songs.map(fix) }; bkArmed = false; $("bkBox").hidden = true; commit(); toast(`${state.songs.length}곡 기록을 불러왔어요`);
+  };
+
+  // ---------- 저장 ----------
+  let timer = null, saving = false, again = false;
+  function commit() { ls.set(KEY, state); render(); clearTimeout(timer); timer = setTimeout(flush, 600); }
+  async function flush() {
+    timer = null; if (saving) { again = true; return; }
+    saving = true; try { await save(); } catch { toast("저장하지 못했어요. 잠시 후 다시 해 보세요."); }
+    saving = false; if (again) { again = false; flush(); }
+  }
+  function saveNow() { if (timer) { clearTimeout(timer); flush(); } }
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") { saveNow(); closeAudio(); } else render(); });
+  addEventListener("pagehide", () => { saveNow(); closeAudio(); });
+
+  function render() { if (view.song) renderDetail(); else renderHome(); }
+
+  state = ls.get(KEY, state); if (!Array.isArray(state.songs)) state = { songs: [] };
+  state.songs.forEach(fix);
+  render();
+
+  (async () => {
+    const banner = msg => { $("banner").textContent = msg; $("banner").hidden = !msg; };
+    const [db, user] = window.claude?.use ? await Promise.all([claude.use("db"), claude.use("user")]) : [null, null];
+    const id = user ? await user.id() : null;
+    const can = user ? await user.can("data.write") : null;
+    if (!db || !id || can === false) return;
+    const ref = db.doc(`data/users/${id}/repertoire`);
+    save = async () => { try { await ref.set({ songs: state.songs }); } catch (e) { if (["invalid_argument", "not_granted", "revoked"].includes(e?.code)) { save = async () => ls.set(KEY, state); banner("이 기기의 브라우저에 저장돼요."); } else throw e; } };
+    ref.onSnapshot(snap => {
+      if (snap.metadata.hasPendingWrites || timer || saving) return;
+      if (snap.exists) { state = { songs: JSON.parse(JSON.stringify(snap.data().songs || [])).map(fix) }; ls.set(KEY, state); render(); }
+      else if (state.songs.length) flush();
+    }, () => {});
+  })();
+})();
+</script>
+
+<script>
+if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+</script>
+</body>
+</html>
