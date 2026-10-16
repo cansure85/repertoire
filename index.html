@@ -156,12 +156,18 @@ details[open] > summary::before { content: "▾ "; }
 .memo button { padding: 2px 8px; font-size: 12px; color: var(--muted); }
 
 /* 악보 보기 */
-.viewer { position: fixed; inset: 0; z-index: 25; background: #0b1218; display: grid; grid-template-rows: auto 1fr; }
+.viewer { position: fixed; inset: 0; z-index: 25; background: #0b1218; display: grid; grid-template-rows: auto 1fr auto; }
 .viewer .vbar { display: flex; gap: 8px; align-items: center; padding: calc(8px + env(safe-area-inset-top, 0px)) 12px 8px; color: #e4eef2; }
 .viewer .vbar button { background: transparent; border-color: #3a4a58; color: #e4eef2; }
 .viewer .vbar .name { flex: 1; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .viewer .vbody { overflow: auto; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y pinch-zoom; }
-.viewer img { display: block; width: 100%; height: auto; max-width: none; transform-origin: 0 0; }
+.viewer img, .viewer canvas { display: block; width: 100%; height: auto; max-width: none; margin: 0 auto; background: #fff; }
+.viewer .vnav { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; padding: 8px 12px calc(10px + env(safe-area-inset-bottom, 0px)); color: #e4eef2; }
+.viewer .vnav button { background: #1c2b37; border-color: #3a4a58; color: #e4eef2; padding: 12px; font-size: 16px; font-weight: 600; }
+.viewer .vnav button:disabled { opacity: .3; }
+.viewer .vpage { font: 500 15px var(--f-mono); text-align: center; min-width: 70px; }
+.viewer .vmsg { padding: 40px 20px; color: #e4eef2; text-align: center; display: grid; gap: 12px; }
+.viewer .vmsg a { color: #7fe0d8; font-weight: 600; }
 
 /* 시트 */
 .sheet { position: fixed; inset: 0; z-index: 20; background: color-mix(in srgb, var(--ink) 45%, transparent); display: grid; align-items: end; }
@@ -239,7 +245,7 @@ canvas.confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-
 
     <!-- 악보 -->
     <div class="card">
-      <div class="row spread"><h2>악보</h2><span class="note">눌러서 크게 보기</span></div>
+      <div class="row spread"><h2>악보</h2><span class="note">눌러서 크게 보고 옆으로 넘기기</span></div>
       <div class="files" id="files"></div>
       <input type="file" id="fileIn" accept="image/*,application/pdf" multiple hidden>
     </div>
@@ -350,6 +356,11 @@ canvas.confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-
     <button id="vDel">삭제</button>
   </div>
   <div class="vbody" id="vBody"></div>
+  <div class="vnav">
+    <button id="vPrev" aria-label="이전 장">‹ 이전</button>
+    <span class="vpage" id="vPage">1 / 1</span>
+    <button id="vNext" aria-label="다음 장">다음 ›</button>
+  </div>
 </div>
 
 <div class="cheer" id="cheer" hidden>
@@ -706,24 +717,91 @@ canvas.confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-
     }
     if (ok) { commit(); renderFiles(); toast(`악보 ${ok}개를 붙였어요`); }
   };
-  let vFile = null, vZoom = 1, vDelArmed = false;
-  async function openViewer(id) {
-    const s = song(view.song), f = s.files.find(x => x.id === id); if (!f) return;
-    const url = await fileURL(id).catch(() => null);
-    if (!url) { toast("이 기기에 파일이 없어요. 다시 첨부해 주세요."); }
-    vFile = id; vZoom = 1; vDelArmed = false; $("vDel").textContent = "삭제"; $("vName").textContent = f.name;
-    $("vZoom").hidden = !f.type.startsWith("image/");
-    $("vBody").innerHTML = !url ? "" : f.type.startsWith("image/") ? `<img src="${url}" alt="${esc(f.name)}" id="vImg">`
-      : `<div style="padding:24px;display:grid;gap:12px;color:#e4eef2"><p style="margin:0">PDF 악보예요. 아래를 누르면 크게 열려요.</p><a href="${url}" target="_blank" rel="noopener" style="color:#7fe0d8;font-weight:600">${esc(f.name)} 열기</a></div>`;
-    $("viewer").hidden = false;
+  // ---------- 악보 넘겨 보기: 사진 한 장 = 한 쪽, PDF는 쪽마다 한 장 ----------
+  let vPages = [], vIdx = 0, vZoom = 1, vDelArmed = false;
+  const pdfDocs = {};
+  let pdfLib = null;
+  function loadPdfLib() {
+    if (pdfLib) return pdfLib;
+    return pdfLib = new Promise((res, rej) => {
+      const base = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/";
+      const sc = document.createElement("script"); sc.src = base + "pdf.min.js";
+      sc.onload = () => { try { window.pdfjsLib.GlobalWorkerOptions.workerSrc = base + "pdf.worker.min.js"; res(window.pdfjsLib); } catch (e) { rej(e); } };
+      sc.onerror = () => { pdfLib = null; rej(new Error("pdf.js")); };
+      document.head.appendChild(sc);
+    });
   }
-  $("vClose").onclick = () => { $("viewer").hidden = true; vFile = null; };
-  $("vZoom").onclick = () => { vZoom = vZoom >= 3 ? 1 : vZoom + 1; const im = $("vImg"); if (im) im.style.width = `${vZoom * 100}%`; $("vZoom").textContent = vZoom === 1 ? "확대" : vZoom >= 3 ? "원래대로" : "더 확대"; };
+  async function pdfDoc(id) {
+    if (pdfDocs[id]) return pdfDocs[id];
+    const lib = await loadPdfLib(), blob = await files.get(id);
+    return pdfDocs[id] = await lib.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) }).promise;
+  }
+  async function buildPages(s) {
+    const out = [];
+    for (const f of s.files) {
+      if (f.type === "application/pdf") {
+        try { const d = await pdfDoc(f.id); for (let p = 1; p <= d.numPages; p++) out.push({ id: f.id, name: f.name, pdf: true, page: p, of: d.numPages }); }
+        catch { out.push({ id: f.id, name: f.name, pdf: true, page: 0, of: 0 }); }   // 읽지 못하면 링크로 열기
+      } else out.push({ id: f.id, name: f.name, pdf: false });
+    }
+    return out;
+  }
+  async function openViewer(id) {
+    const s = song(view.song); if (!s.files.find(x => x.id === id)) return;
+    $("vBody").innerHTML = `<div class="vmsg">악보를 불러오는 중…</div>`; $("viewer").hidden = false;
+    vPages = await buildPages(s);
+    vIdx = Math.max(0, vPages.findIndex(p => p.id === id)); vZoom = 1;
+    showPage();
+  }
+  let renderToken = 0;
+  async function showPage() {
+    const pg = vPages[vIdx]; if (!pg) { $("viewer").hidden = true; return; }
+    const token = ++renderToken;
+    vDelArmed = false; $("vDel").textContent = "삭제";
+    $("vName").textContent = pg.pdf && pg.of ? `${pg.name} · ${pg.page}/${pg.of}쪽` : pg.name;
+    $("vPage").textContent = `${vIdx + 1} / ${vPages.length}`;
+    $("vPrev").disabled = vIdx === 0; $("vNext").disabled = vIdx >= vPages.length - 1;
+    $("vZoom").textContent = vZoom === 1 ? "확대" : vZoom >= 3 ? "원래대로" : "더 확대";
+    const url = await fileURL(pg.id).catch(() => null);
+    if (token !== renderToken) return;
+    if (!url) { $("vBody").innerHTML = `<div class="vmsg">이 기기에 파일이 없어요. 다시 첨부해 주세요.</div>`; return; }
+    if (!pg.pdf) { $("vBody").innerHTML = `<img src="${url}" alt="${esc(pg.name)}" style="width:${vZoom * 100}%">`; $("vBody").scrollTo(0, 0); return; }
+    if (!pg.of) { $("vBody").innerHTML = `<div class="vmsg"><span>이 PDF는 여기서 넘겨 볼 수 없어요. 인터넷에 연결된 상태에서 다시 열거나 아래를 눌러 열어 주세요.</span><a href="${url}" target="_blank" rel="noopener">${esc(pg.name)} 열기</a></div>`; return; }
+    try {
+      const d = await pdfDoc(pg.id), page = await d.getPage(pg.page);
+      if (token !== renderToken) return;
+      const w = $("vBody").clientWidth * vZoom, base = page.getViewport({ scale: 1 }), dpr = Math.min(3, devicePixelRatio || 1);
+      const vp = page.getViewport({ scale: (w / base.width) * dpr });
+      const cv = document.createElement("canvas"); cv.width = vp.width; cv.height = vp.height; cv.style.width = `${w}px`;
+      await page.render({ canvasContext: cv.getContext("2d"), viewport: vp }).promise;
+      if (token !== renderToken) return;
+      $("vBody").innerHTML = ""; $("vBody").appendChild(cv); $("vBody").scrollTo(0, 0);
+    } catch { $("vBody").innerHTML = `<div class="vmsg"><span>이 쪽을 그리지 못했어요.</span><a href="${url}" target="_blank" rel="noopener">${esc(pg.name)} 열기</a></div>`; }
+  }
+  const go = n => { const i = vIdx + n; if (i < 0 || i >= vPages.length) return; vIdx = i; vZoom = 1; showPage(); };
+  $("vPrev").onclick = () => go(-1);
+  $("vNext").onclick = () => go(1);
+  // 손가락으로 옆으로 밀어 넘기기 (확대 중이 아닐 때)
+  let tx = 0, ty = 0, touches = 0;
+  $("vBody").addEventListener("touchstart", e => { touches = e.touches.length; tx = e.touches[0].clientX; ty = e.touches[0].clientY; }, { passive: true });
+  $("vBody").addEventListener("touchend", e => {
+    if (touches !== 1 || vZoom !== 1 || (window.visualViewport && visualViewport.scale > 1.05)) return;
+    const dx = e.changedTouches[0].clientX - tx, dy = e.changedTouches[0].clientY - ty;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) go(dx < 0 ? 1 : -1);
+  }, { passive: true });
+  addEventListener("keydown", e => { if ($("viewer").hidden) return; if (e.key === "ArrowRight") go(1); else if (e.key === "ArrowLeft") go(-1); else if (e.key === "Escape") $("vClose").click(); });
+  $("vClose").onclick = () => { $("viewer").hidden = true; renderToken++; };
+  $("vZoom").onclick = () => { vZoom = vZoom >= 3 ? 1 : vZoom + 1; showPage(); };
   $("vDel").onclick = async () => {
-    if (!vDelArmed) { vDelArmed = true; $("vDel").textContent = "삭제 확인"; return; }
-    const s = song(view.song); s.files = s.files.filter(x => x.id !== vFile); await files.del(vFile).catch(() => {});
-    if (urls[vFile]) { URL.revokeObjectURL(urls[vFile]); delete urls[vFile]; }
-    $("viewer").hidden = true; vFile = null; commit(); renderFiles(); toast("악보를 지웠어요");
+    const pg = vPages[vIdx]; if (!pg) return;
+    if (!vDelArmed) { vDelArmed = true; $("vDel").textContent = pg.pdf && pg.of > 1 ? "PDF 전체 삭제 확인" : "삭제 확인"; return; }
+    const s = song(view.song), id = pg.id;
+    s.files = s.files.filter(x => x.id !== id); await files.del(id).catch(() => {});
+    if (urls[id]) { URL.revokeObjectURL(urls[id]); delete urls[id]; }
+    delete pdfDocs[id];
+    commit(); renderFiles(); toast("악보를 지웠어요");
+    vPages = vPages.filter(p => p.id !== id); vIdx = Math.min(vIdx, vPages.length - 1);
+    if (!vPages.length) $("viewer").hidden = true; else showPage();
   };
 
   // ---------- 곡 추가·편집 ----------
