@@ -260,12 +260,7 @@ canvas.confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-
     <!-- 2단계 -->
     <div class="card" id="c2">
       <div class="row spread"><h2>② 템포 올리기</h2><span class="note num" id="bSum"></span></div>
-      <svg class="tempochart" id="tempoChart" viewBox="0 0 340 120" role="img" aria-label="날짜별로 깔끔하게 친 템포"></svg>
-      <div class="row">
-        <input class="bpmin" id="bpmIn" type="number" min="30" max="260" inputmode="numeric" aria-label="깔끔하게 친 템포(BPM)">
-        <span class="note">BPM에서</span>
-        <button class="primary" id="bpmRec" style="flex:1">깔끔하게 쳤어요</button>
-      </div>
+      <svg class="tempochart" id="tempoChart" viewBox="0 0 340 120" role="img" aria-label="날짜별로 올린 템포"></svg>
       <div class="row spread">
         <div class="row" style="gap:6px">
           <button id="mDown" aria-label="메트로놈 5 내리기">−5</button>
@@ -490,16 +485,32 @@ canvas.confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-
   $("songs").addEventListener("keydown", onKey); $("doneSongs").addEventListener("keydown", onKey);
 
   // ---------- 곡 화면 ----------
-  function openSong(id) { view.song = id; $("home").hidden = true; $("detail").hidden = false; resetDel(); stopMetro(); const s = song(id); $("bpmIn").value = curBpm(s); $("mBpm").textContent = curBpm(s); render(); renderFiles(); window.scrollTo(0, 0); }
+  function openSong(id) { view.song = id; $("home").hidden = true; $("detail").hidden = false; resetDel(); stopMetro(); const s = song(id); $("mBpm").textContent = curBpm(s); raiseMark = null; render(); renderFiles(); window.scrollTo(0, 0); }
   function goHome() { stopMetro(); view.song = null; $("detail").hidden = true; $("home").hidden = false; render(); }
   $("back").onclick = goHome;
   const suggestBpm = s => { const b = bestBpm(s); return b ? Math.min(s.tempo.target || 260, b + 5) : (s.tempo.start || 60); };
   // 마지막으로 맞춰 둔 템포를 곡마다 기억 (앱을 껐다 켜도 그대로)
   const curBpm = s => s.lastBpm || suggestBpm(s);
-  let bpmSaveT = null;
+  // 템포를 올리면 오늘 날짜에 그 템포가 기록돼요 (그날 가장 빠른 템포)
+  //  실수로 올렸다가 30초 안에 다시 내리면 기록도 같이 내려가요
+  let bpmSaveT = null, raiseMark = null;
   function rememberBpm(v) {
-    const s = view.song && song(view.song); if (!s || s.lastBpm === v) return;
-    s.lastBpm = v; clearTimeout(bpmSaveT); bpmSaveT = setTimeout(commit, 400);
+    const s = view.song && song(view.song); if (!s) return;
+    const k = today(), prev = curBpm(s), rec = s.bpm[k] || 0, best = bestBpm(s);
+    let msg = null;
+    if (v > prev && v > rec) {
+      if (!raiseMark || raiseMark.id !== s.id || raiseMark.k !== k) raiseMark = { id: s.id, k, before: rec, base: prev };
+      raiseMark.at = Date.now();
+      s.bpm[k] = v; msg = `오늘 ${v} BPM 기록`;
+      if (s.tempo.target && best < s.tempo.target && v >= s.tempo.target) setTimeout(() => celebrate(s, "tempo"), 200);
+    } else if (v < prev && raiseMark && raiseMark.id === s.id && raiseMark.k === k && Date.now() - raiseMark.at < 30000) {
+      const back = v > raiseMark.base ? Math.max(raiseMark.before, v) : raiseMark.before;   // 올리기 전 템포까지 내리면 원래대로
+      if (back) s.bpm[k] = back; else delete s.bpm[k];
+    }
+    s.lastBpm = v;
+    clearTimeout(bpmSaveT); bpmSaveT = setTimeout(() => { commit(); }, 400);
+    renderDetail();
+    if (msg) toast(msg);
   }
 
   function renderDetail() {
@@ -528,7 +539,8 @@ canvas.confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-
     // ② 템포
     $("bSum").textContent = s.tempo.target ? `최고 ${best || "–"} / 목표 ${s.tempo.target} BPM` : best ? `최고 ${best} BPM` : "";
     drawTempo(s);
-    $("bHint").textContent = !s.tempo.target ? "편집에서 시작·목표 템포를 정하면 진행이 보여요." : best >= s.tempo.target ? "목표 템포 달성! 이제 ③ 처음부터 끝까지 반복해 보세요." : `다음 도전: ${suggestBpm(s)} BPM · 목표까지 ${s.tempo.target - (best || s.tempo.start || 0)} BPM`;
+    $("bHint").textContent = (!s.tempo.target ? "편집에서 시작·목표 템포를 정하면 진행이 보여요. " : best >= s.tempo.target ? "목표 템포 달성! 이제 ③ 처음부터 끝까지 반복해 보세요. " : `목표까지 ${s.tempo.target - (best || s.tempo.start || 0)} BPM 남았어요. `)
+      + "+5로 템포를 올리면 오늘 날짜에 기록돼요.";
     // ③ 완곡
     const C = 2 * Math.PI * 52, p3 = Math.min(1, c / s.target);
     $("ring").setAttribute("stroke-dasharray", `${p3 * C} ${C}`); $("ring").style.stroke = s.color;
@@ -557,7 +569,7 @@ canvas.confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-
     const W = 340, H = 120, L = 30, R = 10, T = 14, B = 20;
     const lo = Math.min(s.tempo.start || Infinity, ...pts.map(x => x[1]), s.tempo.target || Infinity) - 5;
     const hi = Math.max(s.tempo.target || 0, ...pts.map(x => x[1])) + 5;
-    if (!pts.length && !s.tempo.target) { $("tempoChart").innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle">깔끔하게 친 템포를 기록하면 계단처럼 쌓여요</text>`; return; }
+    if (!pts.length && !s.tempo.target) { $("tempoChart").innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle">템포를 올리면 날짜별로 계단처럼 쌓여요</text>`; return; }
     const lo2 = isFinite(lo) ? lo : 50, hi2 = hi > lo2 ? hi : lo2 + 20;
     const y = v => T + (H - T - B) * (1 - (v - lo2) / (hi2 - lo2));
     const n = Math.max(pts.length, 1), x = i => L + (W - L - R) * (n === 1 ? 0.5 : i / (n - 1));
@@ -576,15 +588,6 @@ canvas.confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-
     }
     $("tempoChart").innerHTML = g;
   }
-  $("bpmRec").onclick = () => {
-    const s = song(view.song), v = parseInt($("bpmIn").value, 10);
-    if (!(v >= 30 && v <= 260)) { $("bpmIn").focus(); toast("30~260 사이 BPM을 넣어 주세요"); return; }
-    const k = today(), was = bestBpm(s), hitBefore = s.tempo.target && was >= s.tempo.target;
-    s.bpm[k] = Math.max(s.bpm[k] || 0, v); s.lastBpm = v; commit();
-    $("bpmIn").value = v; $("mBpm").textContent = v;
-    if (s.tempo.target && !hitBefore && v >= s.tempo.target) celebrate(s, "tempo");
-    else toast(v > was ? `${v} BPM 최고 기록!` : `${v} BPM 기록했어요`);
-  };
 
   // ---------- 연습 타이머 (앱을 닫아도 시작 시각 기준으로 계속 흘러감) ----------
   let selPart = null, tick = null;
@@ -850,7 +853,7 @@ canvas.confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-
     if (old) { Object.assign(old, data); id = old.id; }
     else { id = uid(); state.songs.push(fix({ id, ...data, log: {}, bpm: {}, sessions: [], timer: null, notes: [], files: [], created: today(), done: false, doneAt: null })); }
     closeForm(); commit();
-    if (!old) { toast(`「${title}」 추가!`); openSong(id); } else { toast("저장했어요"); if (view.song) { $("bpmIn").value = curBpm(song(view.song)); $("mBpm").textContent = curBpm(song(view.song)); } }
+    if (!old) { toast(`「${title}」 추가!`); openSong(id); } else { toast("저장했어요"); if (view.song) { $("mBpm").textContent = curBpm(song(view.song)); } }
   });
   $("addSong").onclick = () => openForm();
   $("edit").onclick = () => openForm(view.song);
@@ -863,7 +866,7 @@ canvas.confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-
     $("cheerIcon").textContent = kind === "parts" ? "🧠" : kind === "tempo" ? "🎵" : "🌺";
     $("cheerHead").textContent = kind === "parts" ? "모든 구간을 외웠어요!" : kind === "tempo" ? "목표 템포 달성!" : "미션 완료!";
     $("cheerText").textContent = kind === "parts" ? `「${s.title}」의 ${s.parts.length}개 구간을 다 외웠어요. 이제 ② 템포를 올려 봐요.`
-      : kind === "tempo" ? `「${s.title}」을 ${s.tempo.target} BPM으로 깔끔하게 쳤어요. 이제 ③ 처음부터 끝까지 반복해 봐요.`
+      : kind === "tempo" ? `「${s.title}」을 ${s.tempo.target} BPM까지 올렸어요. 이제 ③ 처음부터 끝까지 반복해 봐요.`
       : `「${s.title}」을 처음부터 끝까지 ${fmt(s.target)}번 쳤어요. 정말 멋져요!`;
     $("cheerDone").hidden = $("cheerMore").hidden = !plays3;
     $("cheer").hidden = false; confetti(s.color); chimeFanfare();
@@ -936,9 +939,8 @@ canvas.confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-
     metroOn = true; beat = 0; nextT = ac.currentTime + 0.06; metroTimer = setInterval(schedule, 25);
     $("mBtn").textContent = "■ 정지"; $("mBtn").classList.add("primary");
   };
-  const setM = v => { v = Math.max(30, Math.min(260, v)); $("mBpm").textContent = v; $("bpmIn").value = v; rememberBpm(v); };
+  const setM = v => { v = Math.max(30, Math.min(260, v)); $("mBpm").textContent = v; rememberBpm(v); };
   $("mDown").onclick = () => setM(mbpm() - 5); $("mUp").onclick = () => setM(mbpm() + 5);
-  $("bpmIn").addEventListener("input", () => { const v = parseInt($("bpmIn").value, 10); if (v >= 30 && v <= 260) { $("mBpm").textContent = v; rememberBpm(v); } });
 
   // ---------- 기록 옮기기 ----------
   $("bkCopy").onclick = async () => {
