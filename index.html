@@ -122,6 +122,10 @@ details[open] > summary::before { content: "▾ "; }
 .tempochart .v { fill: var(--ink); font: 11px var(--f-mono); }
 .bpmin { width: 84px; text-align: center; font: 500 18px var(--f-mono); }
 .beats { display: flex; gap: 6px; }
+.tempoctl { display: grid; grid-template-columns: 1fr 1fr auto 1fr 1fr; gap: 6px; align-items: center; }
+.tempoctl button { padding: 10px 0; font: 600 16px var(--f-mono); }
+.tempoval { font-size: 24px; text-align: center; padding-inline: 6px; white-space: nowrap; }
+.tempoval small { font-size: 12px; color: var(--muted); }
 .beats span { width: 12px; height: 12px; border-radius: 50%; background: var(--track); }
 .beats span.on { background: var(--accent); }
 .counter { justify-items: center; text-align: center; }
@@ -260,13 +264,22 @@ canvas.confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-
     <!-- 2단계 -->
     <div class="card" id="c2">
       <div class="row spread"><h2>② 템포 올리기</h2><span class="note num" id="bSum"></span></div>
+      <div class="row spread"><span class="note" id="bGoal"></span><button class="small" id="bGoalBtn">목표 템포 바꾸기</button></div>
+      <div class="row" id="bGoalEdit" hidden>
+        <input id="bGoalIn" type="number" min="30" max="260" inputmode="numeric" aria-label="목표 템포(BPM)" style="width:100px;text-align:center">
+        <span class="note">BPM</span>
+        <button class="primary" id="bGoalSave">저장</button>
+        <button id="bGoalCancel">취소</button>
+      </div>
       <svg class="tempochart" id="tempoChart" viewBox="0 0 340 120" role="img" aria-label="날짜별로 올린 템포"></svg>
+      <div class="tempoctl">
+        <button id="mDown" aria-label="템포 5 내리기">−5</button>
+        <button id="mDown1" aria-label="템포 1 내리기">−1</button>
+        <span class="num tempoval"><span id="mBpm">80</span><small> BPM</small></span>
+        <button id="mUp1" aria-label="템포 1 올리기">+1</button>
+        <button id="mUp" aria-label="템포 5 올리기">+5</button>
+      </div>
       <div class="row spread">
-        <div class="row" style="gap:6px">
-          <button id="mDown" aria-label="메트로놈 5 내리기">−5</button>
-          <span class="num" style="font-size:18px"><span id="mBpm">80</span> BPM</span>
-          <button id="mUp" aria-label="메트로놈 5 올리기">+5</button>
-        </div>
         <div class="beats" id="beats" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
         <button id="mBtn">▶ 메트로놈</button>
       </div>
@@ -485,7 +498,7 @@ canvas.confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-
   $("songs").addEventListener("keydown", onKey); $("doneSongs").addEventListener("keydown", onKey);
 
   // ---------- 곡 화면 ----------
-  function openSong(id) { view.song = id; $("home").hidden = true; $("detail").hidden = false; resetDel(); stopMetro(); const s = song(id); $("mBpm").textContent = curBpm(s); raiseMark = null; render(); renderFiles(); window.scrollTo(0, 0); }
+  function openSong(id) { view.song = id; $("home").hidden = true; $("detail").hidden = false; resetDel(); stopMetro(); const s = song(id); $("mBpm").textContent = curBpm(s); raiseMark = null; $("bGoalEdit").hidden = true; render(); renderFiles(); window.scrollTo(0, 0); }
   function goHome() { stopMetro(); view.song = null; $("detail").hidden = true; $("home").hidden = false; render(); }
   $("back").onclick = goHome;
   const suggestBpm = s => { const b = bestBpm(s); return b ? Math.min(s.tempo.target || 260, b + 5) : (s.tempo.start || 60); };
@@ -540,7 +553,9 @@ canvas.confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-
     $("bSum").textContent = s.tempo.target ? `최고 ${best || "–"} / 목표 ${s.tempo.target} BPM` : best ? `최고 ${best} BPM` : "";
     drawTempo(s);
     $("bHint").textContent = (!s.tempo.target ? "편집에서 시작·목표 템포를 정하면 진행이 보여요. " : best >= s.tempo.target ? "목표 템포 달성! 이제 ③ 처음부터 끝까지 반복해 보세요. " : `목표까지 ${s.tempo.target - (best || s.tempo.start || 0)} BPM 남았어요. `)
-      + "+5로 템포를 올리면 오늘 날짜에 기록돼요.";
+      + "템포를 올리면 오늘 날짜에 기록돼요.";
+    $("bGoal").textContent = s.tempo.target ? `목표 ${s.tempo.target} BPM${s.tempo.start ? ` · 시작 ${s.tempo.start} BPM` : ""}` : "목표 템포가 없어요";
+    $("bGoalBtn").textContent = s.tempo.target ? "목표 템포 바꾸기" : "목표 템포 정하기";
     // ③ 완곡
     const C = 2 * Math.PI * 52, p3 = Math.min(1, c / s.target);
     $("ring").setAttribute("stroke-dasharray", `${p3 * C} ${C}`); $("ring").style.stroke = s.color;
@@ -941,6 +956,16 @@ canvas.confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-
   };
   const setM = v => { v = Math.max(30, Math.min(260, v)); $("mBpm").textContent = v; rememberBpm(v); };
   $("mDown").onclick = () => setM(mbpm() - 5); $("mUp").onclick = () => setM(mbpm() + 5);
+  $("mDown1").onclick = () => setM(mbpm() - 1); $("mUp1").onclick = () => setM(mbpm() + 1);
+  // 목표 템포를 곡 화면에서 바로 바꾸기
+  $("bGoalBtn").onclick = () => { const s = song(view.song); $("bGoalIn").value = s.tempo.target || ""; $("bGoalEdit").hidden = false; $("bGoalIn").focus(); };
+  $("bGoalCancel").onclick = () => { $("bGoalEdit").hidden = true; };
+  $("bGoalSave").onclick = () => {
+    const s = song(view.song), v = parseInt($("bGoalIn").value, 10);
+    if (!(v >= 30 && v <= 260)) { toast("30~260 사이로 넣어 주세요"); $("bGoalIn").focus(); return; }
+    s.tempo.target = v; $("bGoalEdit").hidden = true; commit(); toast(`목표 템포를 ${v} BPM으로 바꿨어요`);
+  };
+  $("bGoalIn").addEventListener("keydown", e => { if (e.key === "Enter") $("bGoalSave").click(); });
 
   // ---------- 기록 옮기기 ----------
   $("bkCopy").onclick = async () => {
